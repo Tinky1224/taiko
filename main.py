@@ -4,17 +4,17 @@ from tja_to_time import tja_to_time
 
 
 
-def main_game(song_name):
+def main_game():
     WHITE = (255, 255, 255)
 
     def music_load(file_name:str):
         pygame.mixer.music.load(file_name)
     
-    def time_to_x(time_list:list,scroll_list:str):
+    def time_to_x(time_list:list, scroll_list:list, scroll_time:list):
         init_pos = 266
         pos_list = []
         for i in range(len(time_list),0,-1):
-            x = init_pos + (time_list[i-1]+3) * 8 * float(scroll_list[i-1]) * 100  #8:move length per sec
+            x = init_pos + (time_list[i-1] + 3) * 1000 / float(scroll_time[i-1]) * float(scroll_list[i-1])  #8:move length per sec
             pos_list.append(x)
         return pos_list
 
@@ -41,10 +41,11 @@ def main_game(song_name):
             elif note_list[i-1] == '9':
                 continue
             x = pos_list[-i]
-            t = time_list[i-1] +3
+            t = time_list[i-1] + 3
             scroll = float(scroll_list[i-1])
+            s_t = scroll_time[i-1]
             note_score = 1200000 // len(note_list) +1
-            note = Note(image,x,t,note_list[i-1],note_score,scroll)
+            note = Note(image,x,t,note_list[i-1],note_score,scroll,s_t)
             note_sprites.add(note)
         
     def draw_Acc(img):
@@ -66,13 +67,12 @@ def main_game(song_name):
         menu_sprites.add(menu)
         ind += 1
         for name in song_list:
-            print(name)
             menu = Menu(name, menu_bg_img, ind, total_num)
             menu_sprites.add(menu)
             ind += 1
         
     class Note(pygame.sprite.Sprite): 
-        def __init__(self,image,x,t,img_type,note_score,scroll):
+        def __init__(self,image,x,t,img_type,note_score,scroll,scroll_time):
             super().__init__()
             self.score = note_score
             self.img_type = img_type
@@ -81,10 +81,11 @@ def main_game(song_name):
             self.x = x #click center = 266
             self.y = 310
             self.scroll = scroll
+            self.scroll_time = float(scroll_time)
             self.rect = self.image.get_rect()
             self.rect.center = (self.x,self.y)
         def update(self,t,player):
-            self.x -= 8 * self.scroll * t /10
+            self.x -= 1000 / self.scroll_time * t / 1000 * self.scroll
             if self.x < 0 :
                 self.kill()
                 player.combo = 0
@@ -203,12 +204,12 @@ def main_game(song_name):
             else :
                 self.image = self.orimage
             self.rect.center = (self.x, self.y)
-        def up(self):
+        def down(self):
             if self.y == 400 + (self.total_num//2+1) * 120 - self.total_num * 120 :
                 self.y += (self.total_num-1) * 120
             else :
                 self.y -= 120
-        def down(self):
+        def up(self):
             if self.y == 400 + (self.total_num//2) * 120:
                 self.y -= (self.total_num-1) * 120
             else :
@@ -226,7 +227,7 @@ def main_game(song_name):
     # initialize pygame and create window
     pygame.init()
     pygame.mixer.init()
-    pygame.mixer.music.set_volume(0.7)
+    pygame.mixer.music.set_volume(1.1)
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("MUSIC!!")
     pygame.key.set_repeat(0)
@@ -306,23 +307,29 @@ def main_game(song_name):
     running = True
     gaming = False
     select_check = 0
-    selected_ind = 0 
+    selected_name = '' 
     while running:
         clock.tick(FPS)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
+                if event.key == pygame.K_UP or event.key == pygame.K_d:
                     ka_sound.play()
                     for i in menu_sprites.sprites():
                         i.up()
-                    selected_ind -= 1
-                elif event.key == pygame.K_DOWN:
+                        if i.y == 400:
+                            selected_name = i.name
+                elif event.key == pygame.K_DOWN or event.key == pygame.K_k:
                     ka_sound.play()
                     for i in menu_sprites.sprites():
                         i.down()
-                    selected_ind += 1
+                        if i.y == 400:
+                            selected_name = i.name
+                elif event.key == pygame.K_j or event.key == pygame.K_f:
+                    don_sound.play()
+                    select_check = 1
+                    song_name = selected_name
         screen.fill((0,0,0))
         menu_sprites.update()
         menu_sprites.draw(screen)
@@ -331,15 +338,16 @@ def main_game(song_name):
             gaming = True
             t = 0 #music time
             t_t = 0 #real time
-            time_list, note_list, scroll_list = tja_to_time(path.join(music_folder,song_name+'.tja'))
+            time_list, note_list, scroll_list, scroll_time = tja_to_time(path.join(music_folder,song_name+'.tja'))
             player = Player()
             player_sprites.add(player)
-            pos_list = time_to_x(time_list,scroll_list)
+            pos_list = time_to_x(time_list, scroll_list, scroll_time)
             draw_note(note_list, pos_list, time_list, scroll_list)
             music_end = 0
             pre_gt = 0
             screen.fill(WHITE)
             screen.blit(background_img,(0,0))
+            select_check = 0
         while gaming:
             # keep loop gaming at the right speed
             dt = clock.tick(FPS)
@@ -357,9 +365,12 @@ def main_game(song_name):
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_q :
                         gaming = False
+                        music_end = True
+                        pygame.mixer.music.stop()
+                        pygame.mixer.music.unload()
                     if event.key == pygame.K_j or event.key == pygame.K_f:
                         don_sound.play(maxtime=100)
-                        if t_t > 2700:
+                        if t_t > 2000:
                             for note in reversed(note_sprites.sprites()):
                                 if note.img_type in ['1','3']:
                                     if  gt/1000 - note.t < -2:
@@ -376,7 +387,7 @@ def main_game(song_name):
         #                j = time()
                     if event.key == pygame.K_k or event.key == pygame.K_d:
                         ka_sound.play()
-                        if t_t > 2700:
+                        if t_t > 2000:
                             for note in reversed(note_sprites.sprites()):
                                 if note.img_type in ['2','4']:
                                     if  gt/1000 - note.t < -2:
@@ -393,15 +404,19 @@ def main_game(song_name):
             if not pygame.mixer.music.get_busy():
                 if music_end :
                     gaming = False
-        #        pass
-        #        screen.fill(WHITE)
-        #        screen.blit(background_img,(0,0))
-                pygame.display.flip()
-                music_load(path.join(audio_folder,'space.ogg'))
-                pygame.mixer.music.play()
-                pygame.mixer.music.queue(path.join(music_folder,song_name+'.ogg'))
-        #        pygame.time.delay(5000)
-                music_end = 1
+                    pygame.mixer.music.stop()
+                    pygame.mixer.music.unload()
+                    note_sprites.empty()
+                else :
+            #        pass
+            #        screen.fill(WHITE)
+            #        screen.blit(background_img,(0,0))
+                    pygame.display.flip()
+                    music_load(path.join(audio_folder,'space.ogg'))
+                    pygame.mixer.music.play()
+                    pygame.mixer.music.queue(path.join(music_folder,song_name+'.ogg'))
+            #        pygame.time.delay(5000)
+                    music_end = 1
             # Update
             combo_text = my_font.render(f'{player.combo} combo',True,(0,0,0))
             max_combo_text = my_font.render(f'max_combp : {player.max_combo}',True,(0,0,0))
@@ -427,8 +442,7 @@ def main_game(song_name):
             note_sprites.draw(screen)
             # *after* drawing everything, flip the display
             pygame.display.flip()
-    
     #print(k-j)
     pygame.quit()
 
-main_game('やわらか戦車')
+main_game()
