@@ -1,2 +1,2 @@
 # taiko
-just fun
+練習pygame的作品
