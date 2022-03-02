@@ -229,7 +229,7 @@ def main_game():
     pygame.mixer.init()
     pygame.mixer.music.set_volume(1.1)
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("MUSIC!!")
+    pygame.display.set_caption("TAIKO")
     pygame.key.set_repeat(0)
     clock = pygame.time.Clock()
     
